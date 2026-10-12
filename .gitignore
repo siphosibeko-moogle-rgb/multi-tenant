@@ -55,6 +55,3 @@ Thumbs.db
 *.log
 logs/
 tmp/
-
-.claude/
-CLAUDE.md
