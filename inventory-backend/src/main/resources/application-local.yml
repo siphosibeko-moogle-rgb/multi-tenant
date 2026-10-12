@@ -1,0 +1,45 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/inventory}
+    username: ${DB_APP_USER:inventory_app}
+    password: ${DB_APP_PASSWORD:@app.db.password@}
+    hikari:
+      pool-name: inventory-app-pool
+      maximum-pool-size: ${DB_POOL_MAX:10}
+
+  flyway:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/inventory}
+    user: ${DB_MIGRATION_USER:inventory_owner}
+    password: ${DB_MIGRATION_PASSWORD:local_dev_only}
+    placeholders:
+      appUserPassword: ${DB_APP_PASSWORD:@app.db.password@}
+      loginUserPassword: ${DB_LOGIN_PASSWORD:@app.login.password@}
+
+app:
+  datasource:
+    login:
+      url: ${DB_URL:jdbc:postgresql://localhost:5432/inventory}
+      username: ${DB_LOGIN_USER:inventory_login}
+      password: ${DB_LOGIN_PASSWORD:@app.login.password@}
+      hikari:
+        pool-name: inventory-login-pool
+        maximum-pool-size: ${DB_LOGIN_POOL_MAX:4}
+
+  auth:
+    signing-key: ${JWT_SIGNING_KEY:local-development-signing-key-not-a-secret-32b+}
+    issuer: inventory-backend
+    ttl:
+      access: 15m
+      refresh: 30d
+    rate-limit:
+      registrations-per-hour: ${AUTH_REGISTRATIONS_PER_HOUR:5}
+      login-attempts-per-minute: ${AUTH_LOGIN_ATTEMPTS_PER_MINUTE:10}
+
+management:
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    org.hibernate.SQL: info

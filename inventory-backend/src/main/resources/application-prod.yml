@@ -1,0 +1,65 @@
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_APP_USER}
+    password: ${DB_APP_PASSWORD}
+    hikari:
+      pool-name: inventory-app-pool
+      maximum-pool-size: ${DB_POOL_MAX:20}
+      max-lifetime: ${DB_POOL_MAX_LIFETIME_MS:600000}
+
+  flyway:
+    url: ${DB_MIGRATION_URL:${DB_URL}}
+    user: ${DB_MIGRATION_USER}
+    password: ${DB_MIGRATION_PASSWORD}
+    placeholders:
+      appUserPassword: ${DB_APP_PASSWORD}
+      loginUserPassword: ${DB_LOGIN_PASSWORD}
+
+  jpa:
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+app:
+  datasource:
+    login:
+      url: ${DB_LOGIN_URL:${DB_URL}}
+      username: ${DB_LOGIN_USER}
+      password: ${DB_LOGIN_PASSWORD}
+      hikari:
+        pool-name: inventory-login-pool
+        maximum-pool-size: ${DB_LOGIN_POOL_MAX:5}
+
+  auth:
+    signing-key: ${JWT_SIGNING_KEY}
+    issuer: ${JWT_ISSUER:inventory-backend}
+    ttl:
+      access: ${JWT_ACCESS_TTL:15m}
+      refresh: ${JWT_REFRESH_TTL:30d}
+    rate-limit:
+      registrations-per-hour: ${AUTH_REGISTRATIONS_PER_HOUR:5}
+      login-attempts-per-minute: ${AUTH_LOGIN_ATTEMPTS_PER_MINUTE:10}
+        max-lifetime: ${DB_POOL_MAX_LIFETIME_MS:600000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+
+server:
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
+
+logging:
+  level:
+    root: info
+    org.hibernate.SQL: warn
