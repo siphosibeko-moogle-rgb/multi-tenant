@@ -17,6 +17,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import java.util.concurrent.TimeUnit
 import javax.inject.Provider
 import javax.inject.Singleton
 import okhttp3.OkHttpClient
@@ -28,25 +29,30 @@ import retrofit2.converter.scalars.ScalarsConverterFactory
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
-
+    
+    private const val CONNECT_TIMEOUT_SECONDS = 15L
+    private const val READ_TIMEOUT_SECONDS = 30L
+    
     @Provides
     @Singleton
     fun moshi(): Moshi = Moshi.Builder()
-        .add(KotlinJsonAdapterFactory())
-        .build()
-
+    .add(KotlinJsonAdapterFactory())
+    .build()
+    
     @Provides
     @Singleton
     fun tokenStore(@ApplicationContext context: Context): TokenStore =
-        EncryptedTokenStore(context)
-
+    EncryptedTokenStore(context)
+    
     @Provides
     @Singleton
     @RefreshClient
     fun refreshClient(): OkHttpClient = OkHttpClient.Builder()
-        .addInterceptor(loggingInterceptor())
-        .build()
-
+    .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+    .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+    .addInterceptor(loggingInterceptor())
+    .build()
+    
     @Provides
     @Singleton
     fun okHttpClient(
@@ -55,19 +61,21 @@ object NetworkModule {
         moshi: Moshi,
         sessionExpiry: Provider<SessionExpiryHandler>,
     ): OkHttpClient = OkHttpClient.Builder()
-        .addInterceptor(AuthInterceptor(tokens))
-        .addInterceptor(loggingInterceptor())
-        .authenticator(
-            TokenAuthenticator(
-                tokens = tokens,
-                baseUrl = BuildConfig.BASE_URL,
-                refreshClient = refreshClient,
-                moshi = moshi,
-                onSessionExpired = { sessionExpiry.get().onSessionExpired() },
-            )
+    .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+    .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+    .addInterceptor(AuthInterceptor(tokens))
+    .addInterceptor(loggingInterceptor())
+    .authenticator(
+        TokenAuthenticator(
+            tokens = tokens,
+            baseUrl = BuildConfig.BASE_URL,
+            refreshClient = refreshClient,
+            moshi = moshi,
+            onSessionExpired = { sessionExpiry.get().onSessionExpired() },
         )
-        .build()
-
+    )
+    .build()
+    
     private fun loggingInterceptor(): HttpLoggingInterceptor =
         HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) {
@@ -77,62 +85,62 @@ object NetworkModule {
             }
             redactHeader("Authorization")
         }
-
-    @Provides
-    @Singleton
-    fun retrofit(client: OkHttpClient, moshi: Moshi): Retrofit = Retrofit.Builder()
+        
+        @Provides
+        @Singleton
+        fun retrofit(client: OkHttpClient, moshi: Moshi): Retrofit = Retrofit.Builder()
         .baseUrl(BuildConfig.BASE_URL)
         .client(client)
         .addConverterFactory(ScalarsConverterFactory.create())
         .addConverterFactory(MoshiConverterFactory.create(serializerMoshi()))
         .addConverterFactory(QueryEnumConverterFactory)
         .build()
-
-    private fun serializerMoshi(): Moshi = com.example.inventory.api.infrastructure.Serializer.moshi
-
-    @Provides
-    @Singleton
-    fun authenticationApi(retrofit: Retrofit): AuthenticationApi =
-        retrofit.create(AuthenticationApi::class.java)
-
-    @Provides
-    @Singleton
-    fun catalogApi(retrofit: Retrofit): CatalogApi = retrofit.create(CatalogApi::class.java)
-
-    @Provides
-    @Singleton
-    fun salesApi(retrofit: Retrofit): SalesApi = retrofit.create(SalesApi::class.java)
-
-    @Provides
-    @Singleton
-    fun inventoryApi(retrofit: Retrofit): com.example.inventory.api.apis.InventoryApi =
-        retrofit.create(com.example.inventory.api.apis.InventoryApi::class.java)
-
-    @Provides
-    @Singleton
-    fun forecastingApi(retrofit: Retrofit): ForecastingApi =
-        retrofit.create(ForecastingApi::class.java)
-
-    @Provides
-    @Singleton
-    fun usersApi(retrofit: Retrofit): com.example.inventory.api.apis.UsersApi =
-        retrofit.create(com.example.inventory.api.apis.UsersApi::class.java)
-
-    @Provides
-    @Singleton
-    fun purchasingApi(retrofit: Retrofit, client: OkHttpClient): com.example.inventory.api.apis.PurchasingApi =
-        retrofit.newBuilder()
+        
+        private fun serializerMoshi(): Moshi = com.example.inventory.api.infrastructure.Serializer.moshi
+            
+            @Provides
+            @Singleton
+            fun authenticationApi(retrofit: Retrofit): AuthenticationApi =
+            retrofit.create(AuthenticationApi::class.java)
+            
+            @Provides
+            @Singleton
+            fun catalogApi(retrofit: Retrofit): CatalogApi = retrofit.create(CatalogApi::class.java)
+            
+            @Provides
+            @Singleton
+            fun salesApi(retrofit: Retrofit): SalesApi = retrofit.create(SalesApi::class.java)
+            
+            @Provides
+            @Singleton
+            fun inventoryApi(retrofit: Retrofit): com.example.inventory.api.apis.InventoryApi =
+            retrofit.create(com.example.inventory.api.apis.InventoryApi::class.java)
+            
+            @Provides
+            @Singleton
+            fun forecastingApi(retrofit: Retrofit): ForecastingApi =
+            retrofit.create(ForecastingApi::class.java)
+            
+            @Provides
+            @Singleton
+            fun usersApi(retrofit: Retrofit): com.example.inventory.api.apis.UsersApi =
+            retrofit.create(com.example.inventory.api.apis.UsersApi::class.java)
+            
+            @Provides
+            @Singleton
+            fun purchasingApi(retrofit: Retrofit, client: OkHttpClient): com.example.inventory.api.apis.PurchasingApi =
+            retrofit.newBuilder()
             .client(withoutConnectionRetry(client))
             .build()
             .create(com.example.inventory.api.apis.PurchasingApi::class.java)
-
-    internal fun withoutConnectionRetry(client: OkHttpClient): OkHttpClient =
-        client.newBuilder().retryOnConnectionFailure(false).build()
-
-    @Provides
-    @Singleton
-    fun suppliersApi(retrofit: Retrofit): com.example.inventory.api.apis.SuppliersApi =
-        retrofit.create(com.example.inventory.api.apis.SuppliersApi::class.java)
+            
+            internal fun withoutConnectionRetry(client: OkHttpClient): OkHttpClient =
+            client.newBuilder().retryOnConnectionFailure(false).build()
+            
+            @Provides
+            @Singleton
+            fun suppliersApi(retrofit: Retrofit): com.example.inventory.api.apis.SuppliersApi =
+            retrofit.create(com.example.inventory.api.apis.SuppliersApi::class.java)
 }
 
 @javax.inject.Qualifier
