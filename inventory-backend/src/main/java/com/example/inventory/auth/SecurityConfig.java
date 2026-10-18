@@ -30,6 +30,9 @@ import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import java.util.ArrayList;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.web.access.expression.WebExpressionAuthorizationManager;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -50,7 +53,10 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**")
                         .permitAll()
-                        .anyRequest().authenticated())
+                        // A temporary-password token may do these two things and nothing else.
+                        .requestMatchers("/auth/change-password", "/auth/logout").authenticated()
+                        .anyRequest().access(new WebExpressionAuthorizationManager(
+                                "isAuthenticated() and !hasAuthority('" + PASSWORD_CHANGE_ONLY + "')")))
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
                         .authenticationEntryPoint(problemEntryPoint())
@@ -65,13 +71,20 @@ public class SecurityConfig {
         return new SecurityProblems.EntryPoint(new BearerTokenAuthenticationEntryPoint());
     }
 
+    static final String PASSWORD_CHANGE_ONLY = "PASSWORD_CHANGE_ONLY";
+
     private static JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
         converter.setJwtGrantedAuthoritiesConverter(jwt -> {
+            List<GrantedAuthority> authorities = new ArrayList<>();
             String role = jwt.getClaimAsString(JwtService.ROLE_CLAIM);
-            return role == null || role.isBlank()
-                    ? List.of()
-                    : List.of(new SimpleGrantedAuthority("ROLE_" + role));
+            if (role != null && !role.isBlank()) {
+                authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
+            }
+            if (Boolean.TRUE.equals(jwt.getClaimAsBoolean(JwtService.PASSWORD_CHANGE_CLAIM))) {
+                authorities.add(new SimpleGrantedAuthority(PASSWORD_CHANGE_ONLY));
+            }
+            return authorities;
         });
         return converter;
     }

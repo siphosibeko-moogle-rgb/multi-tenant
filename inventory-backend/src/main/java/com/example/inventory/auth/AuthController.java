@@ -1,5 +1,6 @@
 package com.example.inventory.auth;
 
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -8,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.inventory.auth.AuthDtos.AuthTokens;
+import com.example.inventory.auth.AuthDtos.ChangePasswordRequest;
 import com.example.inventory.auth.AuthDtos.LoginRequest;
 import com.example.inventory.auth.AuthDtos.RefreshRequest;
 import com.example.inventory.auth.AuthDtos.TenantChoices;
@@ -27,15 +29,18 @@ public class AuthController {
     private final TenantRegistrationService registrationService;
     private final LoginService loginService;
     private final RefreshTokenService refreshTokenService;
+    private final ChangePasswordService changePasswordService;
     private final AuthRateLimiter rateLimiter;
 
     public AuthController(TenantRegistrationService registrationService,
                           LoginService loginService,
                           RefreshTokenService refreshTokenService,
+                          ChangePasswordService changePasswordService,
                           AuthRateLimiter rateLimiter) {
         this.registrationService = registrationService;
         this.loginService = loginService;
         this.refreshTokenService = refreshTokenService;
+        this.changePasswordService = changePasswordService;
         this.rateLimiter = rateLimiter;
     }
 
@@ -62,6 +67,16 @@ public class AuthController {
     @PostMapping("/refresh")
     ResponseEntity<AuthTokens> refresh(@Valid @RequestBody RefreshRequest request) {
         return ResponseEntity.ok(refreshTokenService.refresh(request.refreshToken(), null));
+    }
+
+    @PostMapping("/change-password")
+    ResponseEntity<AuthTokens> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+        var identity = TenantContext.current()
+                .orElseThrow(() -> new UnauthorizedException("Not authenticated"));
+        rateLimiter.checkPasswordChange(identity.userId());
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(changePasswordService.change(identity.tenantId(), identity.userId(), request));
     }
 
     @PostMapping("/logout")

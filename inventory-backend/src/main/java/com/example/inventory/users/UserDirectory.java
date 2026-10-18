@@ -1,6 +1,7 @@
 package com.example.inventory.users;
 
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.time.OffsetDateTime;
 import java.util.Base64;
 import java.util.List;
@@ -12,11 +13,13 @@ import javax.sql.DataSource;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.example.inventory.tenancy.TenantContext;
 import com.example.inventory.users.UserDtos.User;
 import com.example.inventory.users.UserDtos.UserInviteRequest;
+import com.example.inventory.users.UserDtos.UserInviteResponse;
 import com.example.inventory.users.UserDtos.UserPage;
 import com.example.inventory.users.UserDtos.UserUpdateRequest;
 import com.example.inventory.web.ConflictException;
@@ -27,10 +30,26 @@ public class UserDirectory {
     private static final int DEFAULT_LIMIT = 50;
     private static final int MAX_LIMIT = 200;
 
-    private final JdbcTemplate jdbc;
+    private static final String PASSWORD_ALPHABET =
+            "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"; // no look-alikes
+    private static final int TEMP_PASSWORD_LENGTH = 12;
+    private static final SecureRandom RANDOM = new SecureRandom();
 
-    public UserDirectory(@Qualifier("appDataSource") DataSource appDataSource) {
+    private final JdbcTemplate jdbc;
+    private final PasswordEncoder passwordEncoder;
+
+    public UserDirectory(@Qualifier("appDataSource") DataSource appDataSource,
+                         PasswordEncoder passwordEncoder) {
         this.jdbc = new JdbcTemplate(appDataSource);
+        this.passwordEncoder = passwordEncoder;
+    }
+
+    private static String temporaryPassword() {
+        StringBuilder sb = new StringBuilder(TEMP_PASSWORD_LENGTH);
+        for (int i = 0; i < TEMP_PASSWORD_LENGTH; i++) {
+            sb.append(PASSWORD_ALPHABET.charAt(RANDOM.nextInt(PASSWORD_ALPHABET.length())));
+        }
+        return sb.toString();
     }
 
     public UserPage list(String cursor, Integer limit, String status) {
@@ -92,22 +111,27 @@ public class UserDirectory {
                 .stream().findFirst();
     }
 
-    public User invite(UserInviteRequest request) {
+    public UserInviteResponse invite(UserInviteRequest request) {
         UUID tenantId = TenantContext.currentTenantId()
                 .orElseThrow(() -> new IllegalStateException("no tenant bound"));
         UUID id = UUID.randomUUID();
+        String temporary = temporaryPassword();
 
         try {
             jdbc.update("""
-                    INSERT INTO users (id, tenant_id, email, full_name, role, status)
-                    VALUES (?, ?, ?, ?, ?::user_role, 'invited')
-                    """, id, tenantId, request.email(), request.fullName(), request.role());
+                    INSERT INTO users (id, tenant_id, email, password_hash, full_name, role,
+                                       status, must_change_password)
+                    VALUES (?, ?, ?, ?, ?, ?::user_role, 'invited', true)
+                    """, id, tenantId, request.email(), passwordEncoder.encode(temporary),
+                    request.fullName(), request.role());
         } catch (DuplicateKeyException e) {
             throw new ConflictException(
                     "A user with that email already exists in this business", "user-email-taken");
         }
 
-        return find(id).orElseThrow(() -> new IllegalStateException("user vanished after insert"));
+        User created = find(id)
+                .orElseThrow(() -> new IllegalStateException("user vanished after insert"));
+        return new UserInviteResponse(created, temporary);
     }
 
     public Optional<User> update(UUID userId, UserUpdateRequest request) {

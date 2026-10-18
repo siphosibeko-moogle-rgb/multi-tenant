@@ -1,6 +1,7 @@
 package com.example.inventory.mobile.auth
 
 import com.example.inventory.api.apis.AuthenticationApi
+import com.example.inventory.api.models.ChangePasswordRequest
 import com.example.inventory.api.models.LoginRequest
 import com.example.inventory.api.models.TenantRegistrationRequest
 import com.example.inventory.mobile.net.ApiError
@@ -22,6 +23,9 @@ class SessionManager @Inject constructor(
     sealed interface State {
         data object LoggedOut : State
 
+        /** Signed in with a temporary password; only the "set your password" screen is usable. */
+        data object MustChangePassword : State
+
         data class LoggedIn(
             val displayName: String,
             val tenantName: String,
@@ -31,7 +35,11 @@ class SessionManager @Inject constructor(
     }
 
     private val _state = MutableStateFlow<State>(
-        if (tokens.accessToken() != null) State.LoggedIn("", "") else State.LoggedOut
+        when {
+            tokens.accessToken() == null -> State.LoggedOut
+            tokens.mustChangePassword() -> State.MustChangePassword
+            else -> State.LoggedIn("", "")
+        }
     )
     val state: StateFlow<State> = _state.asStateFlow()
 
@@ -74,6 +82,44 @@ class SessionManager @Inject constructor(
             val refresh = body?.refreshToken
             if (access == null || refresh == null) {
                 return ApiError("Signed in, but the server did not return a session token.")
+            }
+
+            if (body.mustChangePassword == true) {
+                tokens.save(access, refresh, mustChangePassword = true)
+                _state.value = State.MustChangePassword
+            } else {
+                tokens.save(access, refresh)
+                _state.value = State.LoggedIn(
+                    displayName = body.user.fullName,
+                    tenantName = body.user.tenant.name,
+                    role = body.user.role.value,
+                    timezone = body.user.timezone,
+                )
+            }
+            null
+        } catch (e: Exception) {
+            ApiError.fromNetworkFailure(e)
+        }
+    }
+
+    suspend fun changePassword(currentPassword: String, newPassword: String): ApiError? {
+        return try {
+            val response = authApi.authChangePasswordPost(
+                ChangePasswordRequest(currentPassword = currentPassword, newPassword = newPassword)
+            )
+
+            if (!response.isSuccessful) {
+                return response.toApiError()
+            }
+
+            val body = response.body()
+            val access = body?.accessToken
+            val refresh = body?.refreshToken
+            if (access == null || refresh == null) {
+                return ApiError(
+                    "Your password was changed, but the server did not return a session token.",
+                    "Sign in again with your new password.",
+                )
             }
 
             tokens.save(access, refresh)

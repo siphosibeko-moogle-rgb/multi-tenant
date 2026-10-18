@@ -2,6 +2,7 @@ package com.example.inventory.users;
 
 import java.util.UUID;
 
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.inventory.users.UserDtos.User;
 import com.example.inventory.users.UserDtos.UserInviteRequest;
+import com.example.inventory.users.UserDtos.UserInviteResponse;
 import com.example.inventory.users.UserDtos.UserPage;
 import com.example.inventory.users.UserDtos.UserUpdateRequest;
 import com.example.inventory.web.NotFoundException;
@@ -43,8 +45,10 @@ public class UsersController {
 
     @PostMapping
     @PreAuthorize("hasRole('owner')")
-    ResponseEntity<User> invite(@Valid @RequestBody UserInviteRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(users.invite(request));
+    ResponseEntity<UserInviteResponse> invite(@Valid @RequestBody UserInviteRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .cacheControl(CacheControl.noStore())
+                .body(users.invite(request));
     }
 
     @PatchMapping("/{userId}")

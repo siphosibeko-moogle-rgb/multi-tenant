@@ -40,6 +40,7 @@ public class LoginService {
 
     private record Candidate(UUID userId, UUID tenantId, String slug, String tenantName,
                              String passwordHash, String role, String status,
+                             boolean mustChangePassword,
                              String currencyCode, String timezone, String fullName) {
     }
 
@@ -59,7 +60,7 @@ public class LoginService {
                 candidate == null || candidate.passwordHash() == null
                         ? DUMMY_HASH : candidate.passwordHash());
 
-        if (candidate == null || !passwordMatches || !"active".equals(candidate.status())) {
+        if (candidate == null || !passwordMatches || !maySignIn(candidate)) {
             throw new UnauthorizedException("Invalid email or password");
         }
 
@@ -73,16 +74,26 @@ public class LoginService {
 
             return new LoginOutcome.Authenticated(tokenIssuer.issueFor(
                     candidate.tenantId(), candidate.userId(), candidate.role(),
-                    user, request.deviceLabel()));
+                    user, request.deviceLabel(), candidate.mustChangePassword()));
         } finally {
             TenantContext.clear();
         }
+    }
+
+    /**
+     * Active users sign in. An invited user signs in only while they hold a temporary
+     * password, and the token they get can do nothing but change it.
+     */
+    private static boolean maySignIn(Candidate c) {
+        return "active".equals(c.status())
+                || ("invited".equals(c.status()) && c.mustChangePassword());
     }
 
     private List<Candidate> findCandidates(String email, String tenantSlug) {
         String sql = """
                 SELECT u.id, u.tenant_id, t.slug, t.name AS tenant_name, u.password_hash,
                        u.role::text AS role, u.status::text AS status,
+                       u.must_change_password,
                        t.currency_code, t.timezone, u.full_name
                 FROM users u
                 JOIN tenants t ON t.id = u.tenant_id
@@ -106,6 +117,7 @@ public class LoginService {
                 rs.getString("password_hash"),
                 rs.getString("role"),
                 rs.getString("status"),
+                rs.getBoolean("must_change_password"),
                 rs.getString("currency_code"),
                 rs.getString("timezone"),
                 rs.getString("full_name")), args);

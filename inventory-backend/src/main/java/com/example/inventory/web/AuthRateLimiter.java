@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.UUID;
 
 import org.springframework.stereotype.Component;
 
@@ -65,5 +66,9 @@ public class AuthRateLimiter {
     private static String clientKey(HttpServletRequest request) {
         String address = request.getRemoteAddr();
         return address == null ? "unknown" : address;
+    }
+    public void checkPasswordChange(UUID userId) {
+        check("pwchange:" + userId, limits.loginAttemptsPerMinute(), Duration.ofMinutes(1),
+                "Too many attempts. Try again shortly.");
     }
 }

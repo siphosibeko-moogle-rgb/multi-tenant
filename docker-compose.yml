@@ -4,6 +4,7 @@ services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    mem_limit: 768m
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-inventory}
       POSTGRES_USER: ${POSTGRES_USER:-inventory_owner}
@@ -24,6 +25,7 @@ services:
     build: ./inventory-backend
     image: inventory-backend:local
     restart: unless-stopped
+    mem_limit: 768m
     depends_on:
       db:
         condition: service_healthy

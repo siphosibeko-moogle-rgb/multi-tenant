@@ -29,7 +29,12 @@ public class TokenIssuer {
 
     public AuthTokens issueFor(UUID tenantId, UUID userId, String role,
                                CurrentUser user, String deviceLabel) {
-        IssuedToken access = jwtService.issueAccessToken(tenantId, userId, role);
+        return issueFor(tenantId, userId, role, user, deviceLabel, false);
+    }
+
+    public AuthTokens issueFor(UUID tenantId, UUID userId, String role,
+                               CurrentUser user, String deviceLabel, boolean mustChangePassword) {
+        IssuedToken access = jwtService.issueAccessToken(tenantId, userId, role, mustChangePassword);
 
         UUID jti = UUID.randomUUID();
         IssuedToken refresh = jwtService.issueRefreshToken(tenantId, userId, jti);
@@ -45,7 +50,8 @@ public class TokenIssuer {
                 deviceLabel,
                 java.sql.Timestamp.from(Instant.now().plus(refresh.ttl())));
 
-        return AuthTokens.of(access.value(), refresh.value(), access.ttl().toSeconds(), user);
+        return AuthTokens.of(access.value(), refresh.value(), access.ttl().toSeconds(),
+                user, mustChangePassword);
     }
 
     static String sha256(String value) {

@@ -34,6 +34,14 @@ public final class UserDtos {
                     message = "must be one of owner, manager, clerk, viewer")
             String role) {
     }
+    /** Returned once, by POST /users. The temporary password is never stored in plain text. */
+    public record UserInviteResponse(User user, String temporaryPassword) {
+
+        @Override
+        public String toString() {
+            return "UserInviteResponse[user=" + user + ", temporaryPassword=redacted]";
+        }
+    }
 
     public record UserUpdateRequest(
             @Pattern(regexp = "owner|manager|clerk|viewer",

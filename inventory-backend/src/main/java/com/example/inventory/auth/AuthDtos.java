@@ -64,15 +64,37 @@ public final class AuthDtos {
             UUID defaultLocationId) {
     }
 
-    public record AuthTokens(
+       public record AuthTokens(
             String accessToken,
             String refreshToken,
             long expiresIn,
             String tokenType,
-            CurrentUser user) {
+            CurrentUser user,
+            boolean mustChangePassword) {
+
+        /** Keeps existing five-argument callers compiling; the flag defaults to false. */
+        public AuthTokens(String accessToken, String refreshToken, long expiresIn,
+                          String tokenType, CurrentUser user) {
+            this(accessToken, refreshToken, expiresIn, tokenType, user, false);
+        }
 
         public static AuthTokens of(String access, String refresh, long expiresIn, CurrentUser user) {
-            return new AuthTokens(access, refresh, expiresIn, "Bearer", user);
+            return of(access, refresh, expiresIn, user, false);
+        }
+
+        public static AuthTokens of(String access, String refresh, long expiresIn,
+                                    CurrentUser user, boolean mustChangePassword) {
+            return new AuthTokens(access, refresh, expiresIn, "Bearer", user, mustChangePassword);
+        }
+    }
+        public record ChangePasswordRequest(
+            @NotBlank String currentPassword,
+            @NotBlank @Size(min = 8, max = 200) String newPassword) {
+
+        /** Records print every field by default, which would put passwords in a log line. */
+        @Override
+        public String toString() {
+            return "ChangePasswordRequest[redacted]";
         }
     }
 

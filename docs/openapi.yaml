@@ -79,13 +79,7 @@ paths:
           description: Email belongs to multiple tenants; pick one
           content:
             application/json:
-              schema:
-                type: object
-                required: [tenants]
-                properties:
-                  tenants:
-                    type: array
-                    items: { $ref: '#/components/schemas/TenantSummary' }
+              schema: { $ref: '#/components/schemas/TenantChoices' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
@@ -141,6 +135,41 @@ paths:
         '204': { description: Logged out }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /auth/change-password:
+    post:
+      tags: [Authentication]
+      summary: Change the signed-in user's password
+      description: |
+        Requires an access token. Verifies the current password, stores the
+        new one, clears `mustChangePassword`, activates an invited user,
+        revokes every refresh token, and returns a fresh token pair so the
+        app does not have to sign in again.
+
+        A wrong current password is **400, not 401**: the app treats 401 as
+        "session expired" and would try to refresh. The same 400 is returned
+        when the new password equals the current one.
+
+        The response is sent with `Cache-Control: no-store`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChangePasswordRequest' }
+      responses:
+        '200':
+          description: Password changed; new token pair issued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthTokens' }
+        '400':
+          description: Current password incorrect, or new password unchanged
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
   /me:
     get:
       tags: [Users]
@@ -188,7 +217,7 @@ paths:
           description: Invited
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/User' }
+              schema: { $ref: '#/components/schemas/UserInviteResponse' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
 
@@ -1475,13 +1504,18 @@ components:
 
     AuthTokens:
       type: object
-      required: [accessToken, refreshToken, expiresIn, tokenType, user]
+      required: [accessToken, refreshToken, expiresIn, tokenType, user, mustChangePassword]
       properties:
         accessToken: { type: string }
         refreshToken: { type: string }
         expiresIn: { type: integer, description: Access token TTL in seconds }
         tokenType: { type: string, examples: [Bearer] }
         user: { $ref: '#/components/schemas/CurrentUser' }
+        mustChangePassword:
+          type: boolean
+          description: |
+            True for an invited user holding a temporary password. The app
+            must send them to the change-password screen before anything else.
 
     LoginRequest:
       type: object
@@ -1491,6 +1525,13 @@ components:
         password: { type: string, format: password, minLength: 8 }
         tenantSlug: { type: string }
         deviceLabel: { type: string }
+
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword: { type: string, format: password }
+        newPassword: { type: string, format: password, minLength: 8, maxLength: 200 }
 
     TenantRegistrationRequest:
       type: object
@@ -1511,6 +1552,14 @@ components:
         id: { type: string, format: uuid }
         slug: { type: string }
         name: { type: string }
+
+    TenantChoices:
+      type: object
+      required: [tenants]
+      properties:
+        tenants:
+          type: array
+          items: { $ref: '#/components/schemas/TenantSummary' }
 
     CurrentUser:
       type: object
@@ -1543,6 +1592,15 @@ components:
         email: { type: string, format: email }
         fullName: { type: string }
         role: { $ref: '#/components/schemas/UserRole' }
+
+    UserInviteResponse:
+      type: object
+      required: [user, temporaryPassword]
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        temporaryPassword:
+          type: string
+          description: Shown once; never stored in plain text and cannot be retrieved later.
 
     Category:
       type: object

@@ -108,6 +108,12 @@ public class RefreshTokenService {
         if (Boolean.TRUE.equals(row.get("expired"))) {
             return new Outcome.Rejected("Refresh token has expired");
         }
+        boolean mustChange = appJdbc.queryForList(
+                "SELECT must_change_password FROM users WHERE id = ?", Boolean.class, userId)
+                .contains(Boolean.TRUE);
+        if (mustChange) {
+            return new Outcome.Rejected("Password change required");
+        }
 
         appJdbc.update("UPDATE refresh_tokens SET revoked_at = now() WHERE id = ?", jti);
 

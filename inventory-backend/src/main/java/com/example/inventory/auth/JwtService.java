@@ -19,6 +19,8 @@ public class JwtService {
     static final String REFRESH_TOKEN_TYPE = "refresh";
     static final String TENANT_CLAIM = "tid";
     static final String ROLE_CLAIM = "role";
+    /** Present and true only on access tokens issued while must_change_password is set. */
+    static final String PASSWORD_CHANGE_CLAIM = "pwc";
 
     private final JwtEncoder encoder;
     private final TokenTtl ttl;
@@ -31,17 +33,24 @@ public class JwtService {
     }
 
     public IssuedToken issueAccessToken(UUID tenantId, UUID userId, String role) {
+        return issueAccessToken(tenantId, userId, role, false);
+    }
+
+    public IssuedToken issueAccessToken(UUID tenantId, UUID userId, String role,
+                                        boolean passwordChangeRequired) {
         Instant now = Instant.now();
-        JwtClaimsSet claims = JwtClaimsSet.builder()
+        JwtClaimsSet.Builder claims = JwtClaimsSet.builder()
                 .issuer(issuer)
                 .issuedAt(now)
                 .expiresAt(now.plus(ttl.access()))
                 .subject(userId.toString())
                 .id(UUID.randomUUID().toString())
                 .claim(TENANT_CLAIM, tenantId.toString())
-                .claim(ROLE_CLAIM, role)
-                .build();
-        return new IssuedToken(encode(claims), ttl.access());
+                .claim(ROLE_CLAIM, role);
+        if (passwordChangeRequired) {
+            claims.claim(PASSWORD_CHANGE_CLAIM, true);
+        }
+        return new IssuedToken(encode(claims.build()), ttl.access());
     }
 
     public IssuedToken issueRefreshToken(UUID tenantId, UUID userId, UUID jti) {

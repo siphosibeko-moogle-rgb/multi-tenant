@@ -19,6 +19,7 @@ import com.example.inventory.mobile.ui.SignUpScreen
 import com.example.inventory.mobile.ui.theme.InventoryTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import com.example.inventory.mobile.ui.ChangePasswordScreen
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -45,6 +46,10 @@ class MainActivity : ComponentActivity() {
                             } else {
                                 LoginScreen(onCreateAccount = { showSignUp = true })
                             }
+                        is SessionManager.State.MustChangePassword -> {
+                            showSignUp = false
+                            ChangePasswordScreen(onSignOut = { session.signOut() })
+                        }
 
                         is SessionManager.State.LoggedIn -> {
                             showSignUp = false
