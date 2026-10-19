@@ -30,6 +30,8 @@ tags:
   - name: Forecasting
   - name: Reports
   - name: Sync
+  - name: Directory
+    description: Opt-in supplier directory. The only data shared between businesses.
 
 paths:
 
@@ -1331,6 +1333,112 @@ paths:
                           enum: [product, category, supplier, location, stock]
                         id: { type: string, format: uuid }
 
+  /supplier-directory:
+    get:
+      tags: [Directory]
+      operationId: searchSupplierDirectory
+      summary: Search the pool (no contact details)
+      parameters:
+        - { name: q,            in: query, schema: { type: string, maxLength: 100 } }
+        - { name: category,     in: query, schema: { type: string } }
+        - { name: businessType, in: query, schema: { $ref: '#/components/schemas/BusinessType' } }
+        - $ref: '#/components/parameters/Cursor'
+        - name: limit
+          in: query
+          description: Smaller cap than the shared `Limit` parameter; the pool is cross-tenant.
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      responses:
+        '200':
+          description: A page of published listings
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Page'
+                  - type: object
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/SupplierListing' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /supplier-directory/{id}:
+    get:
+      tags: [Directory]
+      operationId: getSupplierListing
+      summary: One listing (no contact details)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: The listing
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupplierListing' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /supplier-directory/{id}/contact-requests:
+    post:
+      tags: [Directory]
+      operationId: requestSupplierContact
+      summary: Request contact (Phase 1 - reveals phone and email and records the request)
+      description: Owner or manager only. Rate limited.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Contact details for this one listing
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupplierContact' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /supplier-directory/me:
+    get:
+      tags: [Directory]
+      operationId: getMySupplierListing
+      summary: My own listing, including phone and email
+      responses:
+        '200':
+          description: My listing
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupplierListingOwn' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Directory]
+      operationId: upsertMySupplierListing
+      summary: Apply or update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SupplierListingWrite' }
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SupplierListingOwn' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+    delete:
+      tags: [Directory]
+      operationId: withdrawMySupplierListing
+      summary: Withdraw my listing
+      responses:
+        '204': { description: Withdrawn }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
 components:
 
   securitySchemes:
@@ -2117,3 +2225,51 @@ components:
               productId: { type: string, format: uuid }
               name: { type: string }
               unitsSold: { type: number }
+
+    BusinessType:
+      type: string
+      enum: [WHOLESALER, MANUFACTURER, DISTRIBUTOR, RETAILER, OTHER]
+
+    # No phone or email, not even as null
+    SupplierListing:
+      type: object
+      required: [id, businessName, businessType, contactName, description, category]
+      properties:
+        id:           { type: string, format: uuid }
+        businessName: { type: string }
+        businessType: { $ref: '#/components/schemas/BusinessType' }
+        contactName:  { type: string }
+        description:  { type: string, description: What they supply }
+        category:     { type: string }
+
+    SupplierListingOwn:
+      allOf:
+        - $ref: '#/components/schemas/SupplierListing'
+        - type: object
+          required: [phone, email, isPublished]
+          properties:
+            phone:       { type: string }
+            email:       { type: string, format: email }
+            isPublished: { type: boolean }
+
+    SupplierContact:
+      type: object
+      required: [phone, email]
+      properties:
+        phone: { type: string }
+        email: { type: string, format: email }
+
+    SupplierListingWrite:
+      type: object
+      required: [businessName, businessType, contactName, phone, email, description, category, consentGiven]
+      properties:
+        businessName: { type: string, minLength: 1, maxLength: 150 }
+        businessType: { $ref: '#/components/schemas/BusinessType' }
+        contactName:  { type: string, minLength: 1, maxLength: 100 }
+        phone:        { type: string, maxLength: 30, examples: ['0711234567'] }
+        email:        { type: string, format: email, maxLength: 254 }
+        description:  { type: string, minLength: 1, maxLength: 500 }
+        category:     { type: string, minLength: 1, maxLength: 60 }
+        consentGiven:
+          type: boolean
+          description: Must be true. Other businesses can request the phone and email (POPIA consent).

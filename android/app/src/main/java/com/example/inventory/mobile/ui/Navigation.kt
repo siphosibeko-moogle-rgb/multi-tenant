@@ -4,7 +4,6 @@ enum class Tab(val label: String) {
     HOME("Home"),
     SELL("Sell"),
     STOCK("Stock"),
-    REORDERS("Reorders"),
     MORE("More"),
 }
 
@@ -15,10 +14,8 @@ enum class MorePage {
     USERS,
 }
 
-fun tabsFor(role: String?): List<Tab> = when (role?.lowercase()) {
-    "owner", "manager" -> listOf(Tab.HOME, Tab.SELL, Tab.STOCK, Tab.REORDERS, Tab.MORE)
-    else -> listOf(Tab.HOME, Tab.SELL, Tab.STOCK, Tab.MORE)
-}
+fun tabsFor(@Suppress("UNUSED_PARAMETER") role: String?): List<Tab> =
+    listOf(Tab.HOME, Tab.SELL, Tab.STOCK, Tab.MORE)
 
 fun canEditCatalog(role: String?): Boolean = role?.lowercase() in setOf("owner", "manager")
 

@@ -12,7 +12,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import com.example.inventory.api.models.ReorderRecommendation
 import java.util.UUID
 
 @Composable
@@ -28,7 +27,6 @@ fun SignedInApp(
     var loadKey by remember { mutableStateOf(0) }
 
     var detail by remember { mutableStateOf<Pair<UUID, String>?>(null) }
-    var ordering by remember { mutableStateOf<ReorderRecommendation?>(null) }
     var addingProduct by remember { mutableStateOf(false) }
     var morePage by remember { mutableStateOf<MorePage?>(null) }
 
@@ -47,10 +45,9 @@ fun SignedInApp(
             NavigationBar {
                 tabs.forEach { tab ->
                     NavigationBarItem(
-                        selected = selected == tab && detail == null && ordering == null && !addingProduct,
+                        selected = selected == tab && detail == null && !addingProduct,
                         onClick = {
                             detail = null
-                            ordering = null
                             addingProduct = false
                             morePage = null
                             selected = tab
@@ -65,7 +62,6 @@ fun SignedInApp(
     ) { padding ->
         val content = Modifier.padding(padding)
 
-        val currentOrder = ordering
         val currentDetail = detail
 
         when {
@@ -76,17 +72,6 @@ fun SignedInApp(
                         loadKey++
                     },
                     onBack = { addingProduct = false },
-                )
-            }
-
-            currentOrder != null -> androidx.compose.foundation.layout.Box(content) {
-                CreateOrderScreen(
-                    recommendation = currentOrder,
-                    onDone = {
-                        ordering = null
-                        loadKey++
-                    },
-                    onBack = { ordering = null },
                 )
             }
 
@@ -105,12 +90,7 @@ fun SignedInApp(
                     Tab.HOME -> HomeScreen(
                         loadKey = loadKey,
                         onRecordSale = { selected = Tab.SELL; loadKey++ },
-                        onSeeAllReorders =
-                            if (Tab.REORDERS in tabs) {
-                                { selected = Tab.REORDERS; loadKey++ }
-                            } else {
-                                null
-                            },
+                        onSeeAllReorders = null,
                     )
 
                     Tab.SELL -> ProductListScreen(
@@ -127,11 +107,6 @@ fun SignedInApp(
                         onSignOut = onSignOut,
                         onAddProduct = { addingProduct = true },
                         onOpenDetail = { id, name -> detail = id to name },
-                    )
-
-                    Tab.REORDERS -> ReordersScreen(
-                        loadKey = loadKey,
-                        onCreateOrder = { ordering = it },
                     )
 
                     Tab.MORE -> when (morePage) {
@@ -158,8 +133,10 @@ fun SignedInApp(
                             onStockChanged = { loadKey++ },
                         )
 
-                        MorePage.SUPPLIERS -> SuppliersScreen(
+                        MorePage.SUPPLIERS -> SupplierDirectoryScreen(
                             loadKey = loadKey,
+                            role = role,
+                            tenantName = tenantName,
                             onBack = { morePage = null },
                         )
 

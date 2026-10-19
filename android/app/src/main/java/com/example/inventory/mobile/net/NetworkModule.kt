@@ -141,6 +141,11 @@ object NetworkModule {
             @Singleton
             fun suppliersApi(retrofit: Retrofit): com.example.inventory.api.apis.SuppliersApi =
             retrofit.create(com.example.inventory.api.apis.SuppliersApi::class.java)
+
+    @Provides
+    @Singleton
+    fun directoryApi(retrofit: Retrofit): com.example.inventory.api.apis.DirectoryApi =
+        retrofit.create(com.example.inventory.api.apis.DirectoryApi::class.java)
 }
 
 @javax.inject.Qualifier
